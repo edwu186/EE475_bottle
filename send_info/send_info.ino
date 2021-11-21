@@ -1,32 +1,33 @@
 #include <SPI.h>
-#include <RF24.h>
 #include <BTLE.h>
+
+#include "packets.h"
 
 RF24 radio(9,10);
 
 BTLE btle(&radio);
+
+int i;
 
 void setup() {
 
   Serial.begin(9600);
   while (!Serial) { }
   Serial.println("BTLE advertisement sender");
+  i = 0;
+  btle.begin("PPal");
 
-  btle.begin("foobar");
 }
 
 void loop() {
-  int photoRead = analogRead(A0);
-  if (photoRead < xxx) {
-    output = x;
-  } else {
-    output = x;
-  }
+  Serial.print("Advertising Packet ");
+  Serial.print(i);
 
-  nrf_service_data buf;
-  buf.value = BTLE::to_nRF_Float(output);
-  btle.advertise(0x16, &buf, sizeof(buf));
-  
+  bool succ = btle.advertise((void *) REGISTER_P, (uint8_t) PACKET_LEN);
+  Serial.println(succ);
   btle.hopChannel();
-  delay(2000);
+  delay(50);
+  i++;
+
+  // delay(100);
 }
