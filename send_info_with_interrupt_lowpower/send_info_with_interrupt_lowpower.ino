@@ -40,15 +40,16 @@ void loop() {
   // REGISTER_P
   // for timer < 3, we want send out REGISTER Packages
   // for timer increment by 1, the loop need to complete 1 cycle
-  // the total time for 1 cycle = time of sending packages + time of low power mode
+  // the total time for 1 cycle = time of sending packages
   
-  // time of sending packages = 6 : the for loop sends REGISTER Packages 30 times with delay 0.2s
-  // time of low power mode = 8 : Using SLEEP_8S
-  // this give us 14 second for 1 cycle, mutiply by 3, give us total of 42s to send REGISTER Packages
+  // time of sending packages = 12s : the for loop sends REGISTER Packages 60 times with delay 0.2s
+  // for three cycle have total of 36s to send REGISTER Packages
 
   // BEACON_P
   // after timer reach 3, will always sending BEACON Packages
-  // the time range is same as REGISTER_P
+  // time of sending packages = 18s
+  // time of low power mode = 16 : Using SLEEP_8S for two cycle
+  // every 16s, sending packages for 18s
 
   // NOTE: the reason sending REGISTER or BEACON Packages mutiple time:
   //       during testing, I found out that the reason cellphone able to catch the OPEN_P so quickly and display PPal on the divice list is because
@@ -60,27 +61,27 @@ void loop() {
   //       we defintely could adjust these time range later, but for the current setting it performs very stable.
 
   if (timer < 3) {
-
-    for (int i = 0; i < 30; i++) {
+    for (int i = 0; i < 60; i++) {
       btle.advertise((void *) REGISTER_P, (uint8_t) PACKET_LEN);
       Serial.print(i);
       delay(200);
     }
   } else {
-    for (int j = 30; j < 60; j++) { // use 30 to 60 is for easy visulaize which branch currently running in serial monitor
+    for (int j = 30; j < 120; j++) { // use 30 to 120 is for easy visulaize which branch currently running in serial monitor
     btle.advertise((void *) BEACON_P, (uint8_t) PACKET_LEN);
       Serial.print(j);
       delay(200);
+    }
+    
+    // enter low power mode for 8S, use for loop here to extend it, the current design is basiclly run 18s, turn off 16s, run 18s, turn off...
+    for (int k = 0; k < 2; k++) { 
+      LowPower.powerDown(SLEEP_8S, ADC_OFF, BOD_OFF);
     }
   }
   
   timer++;
   btle.hopChannel();
-  //delay(100);
   
-  Serial.print(" Wait on SLEEP Mode to end");
-  // enter low power mode for 8S, we could use for loop here to extend it, the current design is basiclly run 6s, turn off 8s, run 6s, turn off...
-  LowPower.powerDown(SLEEP_8S, ADC_OFF, BOD_OFF);
-
+  //Serial.print(" Wait on SLEEP Mode to end");
   detachInterrupt(digitalPinToInterrupt(sensorPin));
 }
