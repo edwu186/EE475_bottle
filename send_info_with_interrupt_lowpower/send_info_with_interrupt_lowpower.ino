@@ -1,6 +1,7 @@
 #include <SPI.h>
 #include <BTLE.h>
 #include <LowPower.h>
+#include <EEPROM.h>
 
 #include "packets.h"
 
@@ -18,39 +19,14 @@ volatile byte BEACON_P[9]    = {UUID[0], UUID[1], BOTTLE_ID[0], BOTTLE_ID[1], BO
 volatile byte REGISTER_P[9]  = {UUID[0], UUID[1], BOTTLE_ID[0], BOTTLE_ID[1], BOTTLE_ID[2], BOTTLE_ID[3], 0x0, 0x0, REGISTER_ID};
 volatile byte OPEN_P[9]      = {UUID[0], UUID[1], BOTTLE_ID[0], BOTTLE_ID[1], BOTTLE_ID[2], BOTTLE_ID[3], 0x0, 0x0, OPEN_ID};
 
-void updateSeqNum() {
-  seqNum++;
-  byte msb = (byte) (seqNum >> 4);
-  byte lsb = (byte) (seqNum & 0xFF);
-  BEACON_P[6] = msb;
-  BEACON_P[7] = lsb;
-  OPEN_P[6] = msb;
-  OPEN_P[7] = lsb;
-}
-
-void lidISR()
-{
-  static unsigned long last_interrupt_time = 0;
-  unsigned long interrupt_time = millis();
-  if (!digitalRead(sensorPin) && interrupt_time - last_interrupt_time >= 200) {
-      // broadcast every ~45 ms for 2 seconds
-      Serial.println("In interrupt - lid open");
-      for (int i = 0; i < 40; i++) {
-        btle.advertise((void *) OPEN_P, (uint8_t) PACKET_LEN);
-        btle.hopChannel();
-        delayMicroseconds(15000);
-        delayMicroseconds(15000);
-        delayMicroseconds(15000);
-      }
-      Serial.println("completed all broadcasting");
-      updateSeqNum();
-      Serial.println("updated sequence number");
-  }
-  last_interrupt_time = interrupt_time;
-}
+void lidISR();
+void updateSeqNum();
+void getBottleId();
 
 void setup() {
   Serial.begin(9600);
+  getBottleId();
+
   pinMode(sensorPin, INPUT);
   btle.begin("PPal");
 }
@@ -113,4 +89,51 @@ void loop() {
 
   //Serial.print(" Wait on SLEEP Mode to end");
   detachInterrupt(digitalPinToInterrupt(sensorPin));
+}
+
+
+void getBottleId() {
+  // bottle id has never been generated, create a new one
+  if (EEPROM.read(0) == 0xFF) {
+    randomSeed(analogRead(0));
+    EEPROM.write(0, (byte) random(0, 254));
+    EEPROM.write(1, (byte) random(0, 255));
+    EEPROM.write(2, (byte) random(0, 255));
+    EEPROM.write(3, (byte) random(0, 255));
+  }
+
+  // retrieve bottle id from eeprom
+  for (int i = 0; i < 4; i++) {
+    BOTTLE_ID[i] = EEPROM.read(i)
+  }
+}
+
+void updateSeqNum() {
+  seqNum++;
+  byte msb = (byte) (seqNum >> 4);
+  byte lsb = (byte) (seqNum & 0xFF);
+  BEACON_P[6] = msb;
+  BEACON_P[7] = lsb;
+  OPEN_P[6] = msb;
+  OPEN_P[7] = lsb;
+}
+
+void lidISR() {
+  static unsigned long last_interrupt_time = 0;
+  unsigned long interrupt_time = millis();
+  if (!digitalRead(sensorPin) && interrupt_time - last_interrupt_time >= 200) {
+      // broadcast every ~45 ms for 2 seconds
+      Serial.println("In interrupt - lid open");
+      for (int i = 0; i < 40; i++) {
+        btle.advertise((void *) OPEN_P, (uint8_t) PACKET_LEN);
+        btle.hopChannel();
+        delayMicroseconds(15000);
+        delayMicroseconds(15000);
+        delayMicroseconds(15000);
+      }
+      Serial.println("completed all broadcasting");
+      updateSeqNum();
+      Serial.println("updated sequence number");
+  }
+  last_interrupt_time = interrupt_time;
 }
