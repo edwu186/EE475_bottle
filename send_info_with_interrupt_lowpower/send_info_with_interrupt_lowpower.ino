@@ -15,18 +15,25 @@ volatile uint16_t seqNum = 0;
 
 byte BOTTLE_ID[4] = {0x00, 0x00, 0x00, 0x00}; // TODO: store in EEPROM
 
-volatile byte BEACON_P[9]    = {UUID[0], UUID[1], BOTTLE_ID[0], BOTTLE_ID[1], BOTTLE_ID[2], BOTTLE_ID[3], 0x0, 0x0, BEACON_ID};
-volatile byte REGISTER_P[9]  = {UUID[0], UUID[1], BOTTLE_ID[0], BOTTLE_ID[1], BOTTLE_ID[2], BOTTLE_ID[3], 0x0, 0x0, REGISTER_ID};
-volatile byte OPEN_P[9]      = {UUID[0], UUID[1], BOTTLE_ID[0], BOTTLE_ID[1], BOTTLE_ID[2], BOTTLE_ID[3], 0x0, 0x0, OPEN_ID};
+volatile byte BEACON_P[9]    = {UUID[0], UUID[1], 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, BEACON_ID};
+volatile byte REGISTER_P[9]  = {UUID[0], UUID[1], 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, REGISTER_ID};
 
 void lidISR();
 void updateSeqNum();
 void getBottleId();
+void setupPackets();
+
+void setupPackets() {
+  for (int i = 2; i < 6; i++) {
+    BEACON_P[i] = BOTTLE_ID[i-2];
+    REGISTER_P[i] = BOTTLE_ID[i-2];
+  }
+}
 
 void setup() {
   Serial.begin(9600);
   getBottleId();
-
+  setupPackets();
   pinMode(sensorPin, INPUT);
   btle.begin("PPal");
 }
@@ -36,7 +43,7 @@ void setup() {
 // also work without open up serial moniter
 void loop() {
   // sensor LOW when light intensity higher than set threshold, indicate that lid is open
-  attachInterrupt(digitalPinToInterrupt(sensorPin), lidISR, FALLING);
+  attachInterrupt(digitalPinToInterrupt(sensorPin), lidISR, RISING);
 
   // REGISTER_P
   // for timer < 3, we want send out REGISTER Packages
@@ -104,7 +111,7 @@ void getBottleId() {
 
   // retrieve bottle id from eeprom
   for (int i = 0; i < 4; i++) {
-    BOTTLE_ID[i] = EEPROM.read(i)
+    BOTTLE_ID[i] = EEPROM.read(i);
   }
 }
 
@@ -114,26 +121,13 @@ void updateSeqNum() {
   byte lsb = (byte) (seqNum & 0xFF);
   BEACON_P[6] = msb;
   BEACON_P[7] = lsb;
-  OPEN_P[6] = msb;
-  OPEN_P[7] = lsb;
 }
 
 void lidISR() {
   static unsigned long last_interrupt_time = 0;
   unsigned long interrupt_time = millis();
-  if (!digitalRead(sensorPin) && interrupt_time - last_interrupt_time >= 200) {
-      // broadcast every ~45 ms for 2 seconds
-      Serial.println("In interrupt - lid open");
-      for (int i = 0; i < 40; i++) {
-        btle.advertise((void *) OPEN_P, (uint8_t) PACKET_LEN);
-        btle.hopChannel();
-        delayMicroseconds(15000);
-        delayMicroseconds(15000);
-        delayMicroseconds(15000);
-      }
-      Serial.println("completed all broadcasting");
+  if (digitalRead(sensorPin) && interrupt_time - last_interrupt_time >= 200) {
       updateSeqNum();
-      Serial.println("updated sequence number");
   }
   last_interrupt_time = interrupt_time;
 }
