@@ -42,9 +42,6 @@ void setup() {
 // NOTE: in order to open up serial moniter when connect to the arduino, put finger onto the photoresistor to avoid jumping to interrupt.
 // also work without open up serial moniter
 void loop() {
-  // sensor LOW when light intensity higher than set threshold, indicate that lid is open
-  attachInterrupt(digitalPinToInterrupt(sensorPin), lidISR, RISING);
-
   // REGISTER_P
   // for timer < 3, we want send out REGISTER Packages
   // for timer increment by 1, the loop need to complete 1 cycle
@@ -69,6 +66,9 @@ void loop() {
   //       we defintely could adjust these time range later, but for the current setting it performs very stable.
 
   if (timer >= 3) {
+    // sensor LOW when light intensity higher than set threshold, indicate that lid is open
+    // only enable this interrupt when sending beacon packets
+    attachInterrupt(digitalPinToInterrupt(sensorPin), lidISR, RISING);
     for (int j = 30; j < 120; j++) { // use 30 to 120 is for easy visulaize which branch currently running in serial monitor
       btle.advertise((void *) BEACON_P, (uint8_t) PACKET_LEN);
       btle.hopChannel();
@@ -76,6 +76,7 @@ void loop() {
       delay(200);
     }
 
+    // TODO: remove low power mode for demo
     // enter low power mode for 8S, use for loop here to extend it, the current design is basiclly run 18s, turn off 16s, run 18s, turn off...
     for (int k = 0; k < 2; k++) {
       Serial.println("would be sleeping for 8 seconds");
